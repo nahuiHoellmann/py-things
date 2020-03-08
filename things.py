@@ -13,7 +13,7 @@ def __build_url(data):
     return url
 
 
-def __call_things_api(data):
+def add_items(data):
     url = __build_url(data)
     subprocess.call(["open", url])
 
@@ -38,7 +38,7 @@ def __call_things_api(data):
 #     """
 #     pass
 
-def __create_checklist_item(source):
+def create_checklist_item(source):
     if isinstance(source, str):
         return {
             "type": "checklist-item",
@@ -86,7 +86,7 @@ def __typecheck_create_task(title, **kwargs):
             raise TypeError(f"{k}: expected {expected_type} but got {provided_type}")  # noqa: E501
 
 
-def __create_task(title, **kwargs):
+def create_task(title, **kwargs):
     """summary
     Build a things api compliant task out of the provided arguments
     Parameters
@@ -112,7 +112,7 @@ def __create_task(title, **kwargs):
     if kwargs.get('checklist_items'):
         kwargs['checklist-items'] = []
         for item in kwargs['checklist_items']:
-            checklist_item = __create_checklist_item(item)
+            checklist_item = create_checklist_item(item)
             kwargs['checklist-items'].append(checklist_item)
         del kwargs['checklist_items']
 
@@ -149,120 +149,5 @@ def add_task(title, **kwargs):
     completed: bool, optional
     canceled: bool, optional
     """
-    task = __create_task(title, **kwargs)
-    __call_things_api([task])
-
-# All Functions from here on are for test purposes
-
-
-def ordered(obj):
-    if isinstance(obj, dict):
-        return sorted((k, ordered(v)) for k, v in obj.items())
-    if isinstance(obj, list):
-        return sorted(ordered(x) for x in obj)
-    else:
-        return obj
-
-
-# def test_add():
-
-    # tasks = [
-    #     "Einfuehrung Differenzverstaerker",
-    #     Task(
-    #         title="DV - Gleichtaktverstaerkung",
-    #         project_id="SOMEID",
-    #         canceled=True,
-    #         completed=False
-    #     ),
-    #     Task(
-    #         title="Research",
-    #         project_name="Travel",
-    #         checklist_items=[
-    #             "Transport from airport",
-    #             ChecklistItem(
-    #                 title="Hotels",
-    #                 completed=True
-    #             )
-    #         ]
-    #     )
-    # ]
-
-    # result = __parse_tasks(tasks)
-
-    # expected = [
-    #     {
-    #         "type": "to-do",
-    #         "attributes": {
-    #             "title": "Einfuehrung Differenzverstaerker"
-    #         }
-    #     },
-    #     {
-    #         "type": "to-do",
-    #         "attributes": {
-    #             "title": "DV - Gleichtaktverstaerkung",
-    #             "canceled": True,
-    #             "list-id": "SOMEID"
-    #         }
-    #     },
-    #     {
-    #         "type": "to-do",
-    #         "attributes": {
-    #             "title": "Research",
-    #             "checklist-items": [
-    #                 {
-    #                     "type": "checklist-item",
-    #                     "attributes": {
-    #                         "title": "Transport from airport"
-    #                     }
-    #                 },
-    #                 {
-    #                     "type": "checklist-item",
-    #                     "attributes": {
-    #                         "title": "Hotels",
-    #                         "completed": True
-    #                     }
-    #                 }
-    #             ],
-    #             "list": "Travel"
-    #         }
-    #     }
-    # ]
-
-    # assert ordered(result) == ordered(expected)
-
-
-def test_create_task():
-
-    task = __create_task(
-            title="Research",
-            project_name="Travel",
-            checklist_items=[
-                "Transport from airport",
-                ("Hotels", True)
-            ]
-        )
-    print(json.dumps(task, indent=4))
-    expected = {
-        "type": "to-do",
-        "attributes": {
-            "title": "Research",
-            "list": "Travel",
-            "checklist-items": [
-                {
-                    "type": "checklist-item",
-                    "attributes": {
-                        "title": "Hotels",
-                        "completed": True
-                    }
-                },
-                {
-                    "type": "checklist-item",
-                    "attributes": {
-                        "title": "Transport from airport"
-                    }
-                }
-            ]
-        }
-    }
-
-    assert ordered(task) == ordered(expected)
+    task = create_task(title, **kwargs)
+    add_items([task])
