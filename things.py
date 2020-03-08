@@ -9,6 +9,7 @@ def __build_url(data):
         'things:///json?data=',
         urllib.parse.quote_plus(json.dumps(data, separators=(',', ':')))
     ])
+    url = url.replace("+", "%20")
     return url
 
 
@@ -115,7 +116,7 @@ def __create_task(title, **kwargs):
             kwargs['checklist-items'].append(checklist_item)
         del kwargs['checklist_items']
 
-    # Some keys must be corrected due to the grammar differences in python and json
+    # Some keys must be corrected due to the grammar differences in python and json  # noqa: E501
     if kwargs.get("project_id"):
         kwargs["list-id"] = kwargs.pop("project_id")
 
