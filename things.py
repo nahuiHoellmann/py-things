@@ -1,7 +1,6 @@
 import subprocess
 import urllib.parse
 import json
-from dataclasses import dataclass, asdict
 from datetime import date
 
 
@@ -10,7 +9,6 @@ def __build_url(data):
         'things:///json?data=',
         urllib.parse.quote_plus(json.dumps(data, separators=(',', ':')))
     ])
-
     return url
 
 
@@ -19,102 +17,139 @@ def __call_things_api(data):
     subprocess.call(["open", url])
 
 
-def __restructureTask(attributes):
-    if attributes['checklist_items']:
-        for chl_item in attributes['checklist_items']:
-            if isinstance(chl_item, str):
-                chl_attr = {
-                    "title": chl_item
-                }
-            else:
-                assert isinstance(chl_item, dict)
-                chl_attr = chl_item
-                if not chl_attr["completed"]:
-                    del chl_attr["completed"]
-                if not chl_attr["canceled"]:
-                    del chl_attr["canceled"]
+# TODO: Implement
+# def add_project(title, **kwargs):
+#     """summary
+#     Build a things api compliant task out of the provided arguments
+#     Parameters
+#     ----------
+#     title: str
+#     notes: str, optional
+#     when: date, optional
+#     deadline: date, optional
+#     tags: list, optional
+#     area_id: str, optional
+#     area: str, optional
+#     completed: bool, optional
+#         Defaut False
+#     canceled: bool, optional
+#         Default False
+#     """
+#     pass
 
-            attributes.setdefault("checklist-items", []).append({
-                "type": "checklist-item",
-                "attributes": chl_attr
-            })
-    attributes["list-id"] = attributes["project_id"]
-    attributes["list"] = attributes["project_name"]
-    del attributes['checklist_items']
-    del attributes["project_id"]
-    del attributes["project_name"]
-    keys = [key for key in attributes]
-    for key in keys:
-        if not attributes[key]:
-            del attributes[key]
-
-
-def __parse_tasks(items, project=None):
-    data = []
-    for task in items:
-        if isinstance(task, str):
-            attributes = {
-                "title": task
+def __create_checklist_item(source):
+    if isinstance(source, str):
+        return {
+            "type": "checklist-item",
+            "attributes": {
+                "title": source
             }
-        elif isinstance(task, Task):
-            attributes = asdict(task)
-            __restructureTask(attributes)
-        else:
-            raise TypeError
-
-        if project and not attributes["list"]:
-            attributes["list"] = project
-
-        data.append({
-            "type": "to-do",
-            "attributes": attributes
-        })
-    return data
+        }
+    elif isinstance(source, tuple):
+        title, completed = source
+        if isinstance(title, str) and isinstance(completed, bool):
+            return {
+                "type": "checklist-item",
+                "attributes": {
+                    "title": title,
+                    "completed": completed
+                }
+            }
+    raise TypeError(f"In checklist_items: expected str or (str, bool) but got {type(source)} instead")  # noqa: E501
 
 
-def add(items, project=None):
-    data = __parse_tasks(items, project=None)
-    __call_things_api(data)
+def __typecheck_create_task(title, **kwargs):
+
+    if not isinstance(title, str):
+        raise TypeError(f"title: expected str but got {type(title)}")
+
+    optionals = {
+        "notes": str,
+        "when": date,
+        "deadline": date,
+        "tags": list,
+        "checklist_items": list,
+        "project_id": str,
+        "project_name": str,
+        "heading": str,
+        "completed": bool,
+        "canceled": bool
+    }
+
+    for k, v in kwargs.items():
+        if k not in optionals:
+            raise TypeError(f'Got unexepected keyword argument {k}')
+        provided_type = type(v)
+        expected_type = optionals[k]
+        if expected_type is not provided_type:
+            raise TypeError(f"{k}: expected {expected_type} but got {provided_type}")  # noqa: E501
 
 
-# @dataclass
-# class Project():
-#     name: str
-#     title: str
-#     notes: str = None
-#     when: date = None
-#     deadline: date = None
-#     tags: list = None
-#     area_id: str = None
-#     area: str = None
-#     completed: bool = None
-#     canceled: bool = None
-
-# @dataclass
-# class Heading():
-#     title: str
-
-@dataclass
-class ChecklistItem():
+def __create_task(title, **kwargs):
+    """summary
+    Build a things api compliant task out of the provided arguments
+    Parameters
+    ----------
     title: str
-    completed: bool = None
-    canceled: bool = None
+    notes: str, optional
+    when: date, optional
+    deadline: date, optional
+    tags: list, optional
+    checklist_items: List[str | (str, bool)], optional
+        str is the title and bool is wheter the item has been completed
+        if only a str is provided bool is asumed to be false
+    project_id: str, optional
+    project_name: str, optional
+    heading: str, optional
+    completed: bool, optional
+        Default False
+    canceled: bool, optional
+        Default False
+    """
+    __typecheck_create_task(title, **kwargs)
+
+    if kwargs.get('checklist_items'):
+        kwargs['checklist-items'] = []
+        for item in kwargs['checklist_items']:
+            checklist_item = __create_checklist_item(item)
+            kwargs['checklist-items'].append(checklist_item)
+        del kwargs['checklist_items']
+
+    # Some keys must be corrected due to the grammar differences in python and json
+    if kwargs.get("project_id"):
+        kwargs["list-id"] = kwargs.pop("project_id")
+
+    if kwargs.get("project_name"):
+        kwargs["list"] = kwargs.pop("project_name")
+
+    return {
+        "type": "to-do",
+        "attributes": {
+            "title": title,
+            **kwargs
+        }
+    }
 
 
-@dataclass
-class Task():
+def add_task(title, **kwargs):
+    """"summary
+
+    Parameters
+    ----------
     title: str
-    notes: str = None
-    when: date = None
-    deadline: date = None
-    tags: list = None
-    checklist_items: list = None
-    project_id: str = None
-    project_name: str = None
-    heading: str = None
-    completed: bool = None
-    canceled: bool = None
-
+    notes: str, optional
+    when: date, optional
+    deadline: date, optional
+    tags: list, optional
+    checklist_items: list, optional
+    project_id: str, optional
+    project_name: str, optional
+    heading: str, optional
+    completed: bool, optional
+    canceled: bool, optional
+    """
+    task = __create_task(title, **kwargs)
+    __call_things_api([task])
 
 # All Functions from here on are for test purposes
 
@@ -128,34 +163,30 @@ def ordered(obj):
         return obj
 
 
-def test_add():
+# def test_add():
 
-    tasks = [
-        "Einfuehrung Differenzverstaerker",
-        Task(
-            title="DV - Gleichtaktverstaerkung",
-            project_id="SOMEID",
-            canceled=True,
-            completed=False
-        ),
-        Task(
-            title="Research",
-            project_name="Travel",
-            checklist_items=[
-                "Transport from airport",
-                ChecklistItem(
-                    title="Hotels",
-                    completed=True
-                )
-            ]
-        )
-    ]
+    # tasks = [
+    #     "Einfuehrung Differenzverstaerker",
+    #     Task(
+    #         title="DV - Gleichtaktverstaerkung",
+    #         project_id="SOMEID",
+    #         canceled=True,
+    #         completed=False
+    #     ),
+    #     Task(
+    #         title="Research",
+    #         project_name="Travel",
+    #         checklist_items=[
+    #             "Transport from airport",
+    #             ChecklistItem(
+    #                 title="Hotels",
+    #                 completed=True
+    #             )
+    #         ]
+    #     )
+    # ]
 
-    # assert isinstance(__call_things_api, Mock)
-    add(tasks)
-    # __call_things_api.assert_called_once()
-    # args, _ = __call_things_api.call_args
-    # assert len(args) == 1
+    # result = __parse_tasks(tasks)
 
     # expected = [
     #     {
@@ -196,43 +227,41 @@ def test_add():
     #     }
     # ]
 
-    # assert ordered(args[0]) == ordered(expected)
+    # assert ordered(result) == ordered(expected)
 
 
-def test_restructure():
+def test_create_task():
 
-    task = Task(
+    task = __create_task(
             title="Research",
             project_name="Travel",
             checklist_items=[
                 "Transport from airport",
-                ChecklistItem(
-                    title="Hotels",
-                    completed=True
-                )
+                ("Hotels", True)
             ]
         )
+    print(json.dumps(task, indent=4))
     expected = {
-        "title": "Research",
-        "list": "Travel",
-        "checklist-items": [
-            {
-                "type": "checklist-item",
-                "attributes": {
-                    "title": "Hotels",
-                    "completed": True
+        "type": "to-do",
+        "attributes": {
+            "title": "Research",
+            "list": "Travel",
+            "checklist-items": [
+                {
+                    "type": "checklist-item",
+                    "attributes": {
+                        "title": "Hotels",
+                        "completed": True
+                    }
+                },
+                {
+                    "type": "checklist-item",
+                    "attributes": {
+                        "title": "Transport from airport"
+                    }
                 }
-            },
-            {
-                "type": "checklist-item",
-                "attributes": {
-                    "title": "Transport from airport"
-                }
-            }
-        ]
+            ]
+        }
     }
-    result = asdict(task)
-    __restructureTask(result)
 
-    assert ordered(result) == ordered(expected)
-test_add()
+    assert ordered(task) == ordered(expected)
